@@ -4,6 +4,9 @@ const boom = require('@hapi/boom');
 const jwt = require('jsonwebtoken');
 
 const ApiKeyService = require('../service/apiKeys');
+const UsersService = require('../service/users');
+const validationHandler = require('../utils/middleware/validationHandler');
+const { createUserSchema } = require('../utils/schemas/user');
 const { config } = require('../config');
 
 require('../utils/auth/strategies/basic');
@@ -13,6 +16,7 @@ function authApi(app) {
   app.use('/api/auth', router);
 
   const apiKeyService = new ApiKeyService();
+  const usersService = new UsersService();
 
   router.post('/sign-in', async (req, res, next) => {
     const { apikeyToken } = req.body;
@@ -22,34 +26,50 @@ function authApi(app) {
       try {
         if (error || !user) next(boom.unauthorized());
 
-        req.login(user, {session: false}, async (err) => {
-            if(err) next(err);
+        req.login(user, { session: false }, async (err) => {
+          if (err) next(err);
 
-            const apiKey = await apiKeyService.getApiKey({token: apikeyToken});
-            if(!apiKey) next(boom.unauthorized());
+          const apiKey = await apiKeyService.getApiKey({ token: apikeyToken });
+          if (!apiKey) next(boom.unauthorized());
 
-            const {_id: id, name, email} = user;
+          const { _id: id, name, email } = user;
 
-            const payload = {
-                sub: id,
-                name,
-                email,
-                scopes: apiKey.scopes
-            }
-            const token = jwt.sign(payload, config.authJwtSecret, {
-                expiresIn: '15m'
-            });
+          const payload = {
+            sub: id,
+            name,
+            email,
+            scopes: apiKey.scopes,
+          };
+          const token = jwt.sign(payload, config.authJwtSecret, {
+            expiresIn: '15m',
+          });
 
-            return res.status(200).json({
-                token,
-                user: {id, name, email}
-            });
+          return res.status(200).json({
+            token,
+            user: { id, name, email },
+          });
         });
       } catch (err) {
-          next(err)
+        next(err);
       }
     })(req, res, next);
   });
+
+  router.post(
+    '/sign-up',
+    validationHandler(createUserSchema),
+    async (req, res, next) => {
+      const { body: user } = req;
+
+      try {
+        const createdUserId = await usersService.createUser({ user });
+
+        res.status(201).json({ data: createdUserId, message: 'user created' });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
 }
 
 module.exports = authApi;
