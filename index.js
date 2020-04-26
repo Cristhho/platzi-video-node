@@ -1,5 +1,6 @@
 const express = require('express');
 const app = express();
+const helmet = require('helmet');
 const bodyParser = require('body-parser');
 
 const { config } = require('./config/index');
@@ -15,6 +16,7 @@ const notFountHandler = require("./utils/middleware/notFoundHandler");
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: false}));
+app.use(helmet());
 
 moviesApi(app);
 userMoviesApi(app);
